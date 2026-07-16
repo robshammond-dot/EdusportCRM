@@ -394,7 +394,13 @@ table.map tr:last-child td{border-bottom:none;}
   <h3 class="section-heading">Quoting and fulfilment happen in UDMS</h3>
   <p class="lead-line">All booking creation and booking acceptance happens through UDMS. UDMS is connected to Freshsales through a mix of API sync and manual effort, mainly connected, but not fully automated end to end today.</p>
 
-  <h4 class="sub-heading">Roughly how the statuses line up</h4>
+  <div class="card"><div class="tip-card">
+    <div class="head">What UDMS actually handles</div>
+    <p>Booking acceptance is collected through UDMS, and the booking itself is managed there once accepted. UDMS also has its own APIs connecting out to services beyond just Freshsales.</p>
+  </div></div>
+  <div class="callout blue" style="margin-top:12px;"><span class="icon">&#128269;</span><span>Documented here at the level currently visible from the Freshsales side. UDMS's internals, including exactly which services it talks to via API, aren't fully mapped yet, worth filling in properly once there's someone who can walk through the UDMS side directly.</span></div>
+
+  <h4 class="sub-heading" style="margin-top:18px;">Roughly how the statuses line up</h4>
   <table class="map">
     <tr><th>UDMS status</th><th>Roughly maps to (Freshsales)</th></tr>
     <tr><td><span class="stage-chip udms">Quoted</span></td><td><span class="stage-chip">Quoted</span></td></tr>
