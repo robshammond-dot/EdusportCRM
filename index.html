@@ -144,6 +144,7 @@ table.map tr:last-child td{border-bottom:none;}
     <li><a href="#customer-journeys">Customer Journeys</a></li>
     <li><a href="#step-3-freshsales-to-udms">Step 3 - Freshsales to UDMS</a></li>
     <li><a href="#integration-projects">Integration Projects</a></li>
+    <li><a href="#enquiry-naming-convention">Enquiry Naming Convention</a></li>
     <li><a href="#planning-and-operations">Planning & Operations</a></li>
     <li><a href="#related-team-guides">Related Team Guides</a></li>
   </ol>
@@ -418,18 +419,20 @@ table.map tr:last-child td{border-bottom:none;}
   <h4 class="sub-heading">Webhook Project <span style="color:var(--green-dark);font-weight:700;">&middot; In Development</span></h4>
   <p class="lead-line">A standalone Laravel application on its own subdomain (<code class="inline">webhooks.edusport.co.za</code>), receiving webhook calls from Fresh workflows, processing the logic, and updating Fresh via the API. This keeps the load off the WordPress site and avoids building up long-term dependency costs on tools like Pipedream. <b>This is already in development, not just a proposal on paper.</b></p>
 
+  <div class="callout red"><span class="icon">&#9888;&#65039;</span><span><b>Architecture-changing finding:</b> incoming email content (subject, body, or thread) isn't available to us through Freshsales' supported API or workflow webhooks, confirmed directly by Freshworks. Older developer docs referenced something similar via the previous Marketplace SDK, but whether that ever actually worked as described, or was later withdrawn, isn't confirmed, only that it's not an option today. This wasn't known when the original scope below was written, the plan has been revised because of it.</span></div>
+
   <div class="grid grid-2">
     <div class="card"><div class="tip-card">
-      <div class="head">Email enquiry logic</div>
-      <p>New email &rarr; new Enquiry, Contact linked under Related Customers, existing Fresh workflows still handle Sales Owner assignment. A reply (RE:/FW:, or a matching enquiry/quote reference) appends to the existing Enquiry instead of creating a duplicate.</p>
+      <div class="head">Email enquiry logic <span style="color:var(--red);font-weight:700;">revised</span></div>
+      <p>Since Fresh can't supply email content, the application reads incoming emails directly via Microsoft Graph (linked to Edusport's MS365 licences) instead of relying on Fresh webhooks for that data. It determines whether an email is a new Enquiry or a reply, creates new Enquiries where required, and appends replies to the Notes of the correct existing Enquiry, still using the agreed matching logic (RE:/FW: detection, quote reference + customer email).</p>
     </div></div>
     <div class="card"><div class="tip-card">
       <div class="head">RWC2027 auto quote replies</div>
       <p>Client replies to UDMS auto quotes, landing in enquiries@edusport.co.za, get matched to the right customer and Enquiry, the UDMS quote reference gets appended, the written request logged to Notes, and the assigned Sales Owner gets notified by email.</p>
     </div></div>
     <div class="card"><div class="tip-card">
-      <div class="head">Chat enquiry logic</div>
-      <p>A website chat gets promoted to a Fresh Enquiry once it's identified as one (label, automation rule, or resolution, exact trigger still to be confirmed), with customer/chat details attached and Sales Owner assignment still handled by existing Fresh workflows.</p>
+      <div class="head">Chat enquiry logic <span style="color:var(--green-dark);font-weight:700;">confirmed</span></div>
+      <p>Freshchat has its own webhook functionality, separate from Fresh CRM's, sending every event on a conversation (including messages) to the application to process and filter. Trigger is deliberate: when an agent changes the conversation Type to <b>"New Enquiry"</b>, that generates the webhook event, which creates the Enquiry, links it to the Contact, includes the chat details, and hands off to existing Fresh workflows for Sales Owner assignment. Only chats an agent has actually qualified become Enquiries, nothing converts automatically just from a conversation happening.</p>
     </div></div>
     <div class="card"><div class="tip-card">
       <div class="head">Enquiry &harr; Customer tag sync</div>
@@ -441,11 +444,39 @@ table.map tr:last-child td{border-bottom:none;}
     </div></div>
     <div class="card"><div class="tip-card">
       <div class="head">Foundations</div>
-      <p>Laravel app setup on the subdomain, authenticated endpoints, logging and error handling, Fresh API credentials, and basic endpoint documentation as it lands.</p>
+      <p>Laravel app setup on the subdomain, authenticated endpoints, logging and error handling, Fresh API and Microsoft Graph credentials, and basic endpoint documentation as it lands.</p>
     </div></div>
   </div>
 
-  <h4 class="sub-heading" style="margin-top:18px;">Now decided</h4>
+  <h4 class="sub-heading" style="margin-top:22px;">Revised Plan: A Phased Handover</h4>
+  <p class="lead-line">Rather than switching everything over at once, Enquiry creation moves across in two stages.</p>
+
+  <div class="callout red"><span class="icon">&#128269;</span><span><b>Confirmed, not assumed:</b> before any of this automation existed, the person managing the inbox confirmed the auto-created Enquiry only ever got a name and the Source field populated automatically. Sales Owner/consultant allocation never happened on its own, and every other detail was filled in by hand. So "Phase A keeps Fresh's existing workflow unchanged" means keeping a workflow that was already this thin, not a proven working baseline. Sales Owner assignment for these Enquiries needs to be explicitly built into the new solution, not assumed to already work.</span></div>
+
+  <div class="grid grid-2">
+    <div class="card"><div class="tip-card">
+      <div class="head">Phase A &middot; Now</div>
+      <p>The existing Fresh workflow that creates Enquiries from email keeps running unchanged (name and Source only, as it always has). The new application, reading via Microsoft Graph, only adds follow-up replies to the Notes of the correct existing Enquiry.</p>
+    </div></div>
+    <div class="card"><div class="tip-card">
+      <div class="head">Phase B &middot; Once proven reliable</div>
+      <p>The existing Fresh Enquiry-creation workflow gets retired. The application takes over the full process end to end: deciding new vs. reply, creating Enquiries, and appending replies. Sales Owner assignment needs to be a first-class part of this, not carried over from Fresh's old thin version.</p>
+    </div></div>
+  </div>
+
+  <h4 class="sub-heading" style="margin-top:22px;">Follow-up Questions for Synapse</h4>
+  <div class="grid grid-2">
+    <div class="card"><div class="tip-card">
+      <div class="head">Still open</div>
+      <p>How does the app match a brand-new email to an Enquiry Fresh's own workflow may have already created in parallel, there's no quote reference yet for a new enquiry, so what's the actual match key? Does RWC2027 auto-quote reply handling ride the same Graph pipeline, or is it separate? How will Sales Owner assignment actually get triggered once the app (not Fresh) creates the Enquiry in Phase B?</p>
+    </div></div>
+    <div class="card"><div class="tip-card">
+      <div class="head">Resolved, low risk</div>
+      <p>Microsoft Graph/Azure AD access: Synapse already manages Edusport's network and websites, so this should be straightforward. Auto-close timing: no conflict, auto-close only kicks in much later at Consultation and Quoted stages. Attachments: no new risk, the email still lands in the inbox regardless, and most incoming emails don't carry attachments anyway.</p>
+    </div></div>
+  </div>
+
+  <h4 class="sub-heading" style="margin-top:22px;">Now decided</h4>
   <div class="callout green">
     <span class="icon">&#9989;</span>
     <span>
@@ -453,14 +484,28 @@ table.map tr:last-child td{border-bottom:none;}
       RWC2027 quote-reply content gets added to the enquiry, and the assigned Sales Owner is auto-notified by email.<br>
       Enquiry type is determined by the Customer Type field (Direct, Incentives, Corporate, International, Travel Agent).<br>
       Enquiry name defaults to "New Enquiry &ndash; Customer Name" on the rare case the interested-event field is empty.<br>
-      A chat qualifies as an Enquiry via a label applied when the chat is resolved.<br>
+      A chat qualifies as an Enquiry when an agent changes the conversation Type to "New Enquiry", using Freshchat's own webhook functionality.<br>
       Existing Fresh workflows still handle Sales Owner assignment for chat enquiries too.<br>
       An existing Enquiry is identified using a combination of the quote reference and the customer's email.<br>
-      Existing workflows won't run in parallel with the new webhook logic, they'll either be rebuilt as new workflows to support it, or removed and replaced outright.<br>
-      The chat webhook's job is just to create the Enquiry, the full chat transcript is already linked to the Contact separately, so it doesn't need to be part of this logic.<br>
+      Email Enquiry creation stays with Fresh's existing workflow for now (Phase A above), moving to the application only once Phase B is reached, rather than both changing at once.<br>
       Auto task closure only marks tasks Completed via the API and keeps whatever outcome/reason the workflow already supplied, and is reusable for future cleanup workflows, not just old-task cleanup.
     </span>
   </div>
+
+  <div class="callout blue" style="margin-top:14px;"><span class="icon">&#128172;</span><span><b>Edusport's response to Synapse</b> <span style="color:var(--amber);font-weight:700;">(pending final confirmation)</span>: Source should be "Chat" for these enquiries. Naming should follow the usual convention rather than something new, "New Enquiry - {Interested Event}", pulling from a Contact-level field ("Interested Event") that gets populated upfront during the chat itself.</span></div>
+
+  <div class="grid grid-2" style="margin-top:12px;">
+    <div class="card"><div class="tip-card">
+      <div class="head">Question back to Synapse</div>
+      <p>If "Interested Event" is completed on the Customer (Contact) record during the chat, can that Contact-level value be pulled through to name the new Enquiry, given it's a Contact field, not a Deal/Enquiry field? Not yet answered.</p>
+    </div></div>
+    <div class="card"><div class="tip-card">
+      <div class="head">Additional ask</div>
+      <p>Ideally the created Enquiry also pulls the event into its own Deal-level field, "Sport Event Interested In", not just the Name, so the Enquiry itself carries the data, not only its title. Sales Owner assignment stays as-is, handled by the existing round robin triggered on Enquiry creation.</p>
+    </div></div>
+  </div>
+
+  <div class="callout amber" style="margin-top:14px;"><span class="icon">&#9888;&#65039;</span><span>Also re-raised with Synapse in the same note, still unanswered from earlier: the match key for a brand-new email (no quote reference exists yet), whether RWC2027 auto-quote handling rides the same Graph pipeline or is separate, and exactly how Sales Owner assignment triggers once the application (not Fresh) is the one creating Enquiries in Phase B.</span></div>
 
   <div class="callout blue" style="margin-top:14px;"><span class="icon">&#128221;</span><span>Noted for testing: some of this detail came from a phone call that isn't reflected in the written brief itself, worth testing against what was actually discussed rather than the document alone.</span></div>
 
@@ -479,6 +524,53 @@ table.map tr:last-child td{border-bottom:none;}
   </div>
 
   <div class="callout blue" style="margin-top:14px;"><span class="icon">&#128203;</span><span>Full point-by-point breakdown of all 15 flows lives in the <b>UDMS / Freshsales Integration Overview</b> document. This section will fold that detail in directly once we finalise where it lives.</span></div>
+  <a class="back-to-top" href="#top">&uarr; Back to top</a>
+</section>
+
+<section id="enquiry-naming-convention">
+  <h2 class="section-title">Enquiry Naming Convention <span style="color:var(--green-dark);">&middot; Live</span></h2>
+  <h3 class="section-heading">Keeping "New Enquiry - {Event}" consistent, no matter how the Enquiry was created</h3>
+  <p class="lead-line">Zapier-created Enquiries have always followed the convention "New Enquiry - {Event}" automatically. Manually-created ones didn't, Enquiry Name is a free text field, so agents typed whatever they liked. This is now fixed, split across two mechanisms depending on whether a human is present when the Enquiry gets created.</p>
+
+  <div class="grid grid-2">
+    <div class="card"><div class="tip-card">
+      <div class="head">No human present <span class="sys-pill amber">webhook app</span></div>
+      <p>Email and Chat enquiries are created by automation, not a person sitting at a keyboard. Naming for these channels is handled inside the webhooks.edusport.co.za application (see Integration Projects above), since it can process the source data directly.</p>
+    </div></div>
+    <div class="card"><div class="tip-card">
+      <div class="head">Human present <span class="sys-pill fresh">native Fresh build</span></div>
+      <p>Phone and other manually-created Enquiries have a person creating the record. For these, a native Freshsales build handles naming, covered below.</p>
+    </div></div>
+  </div>
+
+  <h4 class="sub-heading" style="margin-top:22px;">How the native build works</h4>
+  <div class="grid grid-3">
+    <div class="card"><div class="tip-card">
+      <div class="head">1. Enquiry Naming Event</div>
+      <p>A new single-select Dropdown field (132 choices, mirroring the existing Sport Event Interested In list). The agent picks the primary event here when creating an Enquiry manually.</p>
+    </div></div>
+    <div class="card"><div class="tip-card">
+      <div class="head">2. Enquiry Name Look-Up</div>
+      <p>A Formula field that builds the string: <code class="inline">concat('New Enquiry - ', {{Deal.enquiry_naming_event}})</code>. Single-select values are plain text, so this works, unlike the original Sport Event Interested In field.</p>
+    </div></div>
+    <div class="card"><div class="tip-card">
+      <div class="head">3. The Workflow</div>
+      <p>Runs repeatedly on Enquiry create/update. Conditions (Match ALL): Enquiry Naming Event is not empty, AND Source is not in Web. Action: Update Name via Relative field, pointed at the formula field.</p>
+    </div></div>
+  </div>
+
+  <div class="callout red" style="margin-top:14px;"><span class="icon">&#9888;&#65039;</span><span><b>Deliberately no "Name is empty" condition.</b> An Enquiry can't be created without something in Name, agents always type into it at creation, so it's essentially never blank. The workflow has to unconditionally overwrite Name every time the two real conditions are met, not wait for a blank field that will never actually be blank.</span></div>
+
+  <h4 class="sub-heading" style="margin-top:22px;">Why this took longer than it should have</h4>
+  <p class="lead-line">The original attempt tried building the formula straight off the existing Sport Event Interested In field. Worth remembering for any future Formula field work at Edusport:</p>
+  <div class="cond-block">
+    <div class="cond-line">&bull; <b>Formula fields can't reference Multiselect fields at all.</b> Sport Event Interested In is Multiselect, it doesn't even appear in the Formula field's picker. This is a genuine platform limit, not a syntax issue, changing that field type wasn't viable either (Zapier and other automations depend on it staying Multiselect). The new single-select field sidesteps this entirely.</div>
+    <div class="cond-line">&bull; <b>String literals need single quotes, not double.</b> <code class="inline">'text'</code> works, <code class="inline">"text"</code> doesn't.</div>
+    <div class="cond-line">&bull; <b>concat() is a standalone function, not a Java-style method.</b> <code class="inline">concat('a','b')</code> works; <code class="inline">'a'.concat('b')</code> doesn't, even though the function list is otherwise built on Java's String API.</div>
+    <div class="cond-line">&bull; <b>Field references must be inserted via the picker, not typed.</b> Click Insert &rarr; Fields and select the field so it drops in as a real chip, hand-typing <code class="inline">{{Deal.field_name}}</code> isn't recognised.</div>
+  </div>
+
+  <div class="callout green" style="margin-top:14px;"><span class="icon">&#9989;</span><span>The formula field is reused, not rebuilt, from the original attempt: <code class="inline">concat('New Enquiry - ', {{Deal.enquiry_naming_event}})</code>, just repointed at the new single-select field instead of the Multiselect one.</span></div>
   <a class="back-to-top" href="#top">&uarr; Back to top</a>
 </section>
 
